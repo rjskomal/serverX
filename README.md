@@ -2,10 +2,10 @@ Hi,
 If you are an experienced SDE or is someone who is cracked reading this, don't. This is just a project-based-learning.
 
 This is for me to learn stuff, implement and earn. (Damn inflation)
-Whatever, I just learnt sockets, implemented a basic server with auth and planning to scale it to learn more.
+I just learnt sockets, implemented a basic server with auth and planning to scale it to learn more.
 Altough I don't really enjoy hacking away all the time, I definitely have to do this to survive eventually.
 
-IDGAF about the UI or FE, I just prompted the shit out of co-pilot to give me a template react code that I could use.
+I don't really care about about the UI or FE, I just prompted the it out of co-pilot to give me a template react code that I could use.
 The socket code is mine tho.
 
 
