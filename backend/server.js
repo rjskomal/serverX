@@ -85,7 +85,6 @@ app.post("/login", async (req, res) => {
     }
 });
 
-// Socket connection with JWT authentication
 io.use((socket, next) => {
     const token = socket.handshake.auth.token;
     
