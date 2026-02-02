@@ -4,6 +4,7 @@ const http = require('http');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
 require('dotenv').config();
 const User = require('./schema/User');
 const app = express();
@@ -42,8 +43,9 @@ app.post("/signup", async (req, res) => {
             return res.status(409).json({ error: "User already exists" });
         }
         
-        // Create new user in MongoDB
-        const newUser = new User({ username, password });
+        // Create new user in MongoDB (hash password before saving)
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newUser = new User({ username, password: hashedPassword });
         await newUser.save();
         
         return res.status(201).json({ message: "User registered successfully" });
@@ -64,7 +66,11 @@ app.post("/login", async (req, res) => {
     try {
         // Check if user exists and password is correct
         const user = await User.findOne({ username });
-        if (!user || user.password !== password) {
+        if (!user) {
+            return res.status(401).json({ error: "Invalid username or password" });
+        }
+        const match = await bcrypt.compare(password, user.password);
+        if (!match) {
             return res.status(401).json({ error: "Invalid username or password" });
         }
         
