@@ -7,6 +7,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 const User = require('./schema/User');
+const Message = require('./schema/Message');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*", }, });
@@ -101,28 +102,49 @@ io.use((socket, next) => {
     }
 });
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
     console.log(`User ${socket.userId} connected with socket id ${socket.id}`);
-    
+
+    // When a client connects, send ALL persisted messages from DB (if any)
+    try {
+        const allMessages = await Message.find({ roomId: 'global' }).sort({ createdAt: 1 });
+        socket.emit('recent-messages', allMessages.map(m => ({
+            username: m.username,
+            message: m.message,
+            timestamp: m.createdAt.toLocaleTimeString(),
+            type: 'user'
+        })));
+    } catch (err) {
+        console.error('Error fetching messages:', err);
+    }
+
     // Notify all clients that a user has connected
     socket.broadcast.emit('user-connected', {
         username: socket.userId,
         message: `${socket.userId} joined the conversation`,
         type: 'system'
     });
-    
+
     // Handle incoming messages
-    socket.on('send-message', (data) => {
-        // Broadcast to all clients except sender
-        socket.broadcast.emit('receive-message', {
-            username: socket.userId,
-            message: data.message,
-            type: 'user',
-            timestamp: new Date().toLocaleTimeString()
-        });
+    socket.on('send-message', async (data) => {
+        try {
+            // Persist message (keep full history)
+            const msgDoc = new Message({ username: socket.userId, message: data.message, roomId: 'global' });
+            await msgDoc.save();
+
+            // Broadcast to all clients except sender
+            socket.broadcast.emit('receive-message', {
+                username: socket.userId,
+                message: data.message,
+                type: 'user',
+                timestamp: msgDoc.createdAt.toLocaleTimeString()
+            });
+        } catch (err) {
+            console.error('Error saving/broadcasting message:', err);
+        }
     });
-    
-    socket.on("disconnect", () => {
+
+    socket.on("disconnect", async () => {
         console.log(`User ${socket.userId} disconnected`);
         // Notify all remaining clients that user left
         socket.broadcast.emit('user-disconnected', {
@@ -130,6 +152,27 @@ io.on("connection", (socket) => {
             message: `${socket.userId} left the convo`,
             type: 'system'
         });
+
+        // If no clients remain connected, flush messages from DB
+        try {
+            // Try local fast path first
+            let totalClients = null;
+            if (io && io.engine && typeof io.engine.clientsCount === 'number') {
+                totalClients = io.engine.clientsCount-2; // temperory fix for incorrect client count (bug in socket.io v4.5.0+)
+            }
+            // Fallback to adapter-aware count (works across clustered instances)
+            if (totalClients === null) {
+                const allSockets = await io.of('/').allSockets();
+                totalClients = allSockets.size;
+            }
+
+            if (totalClients === 0) {
+                await Message.deleteMany({ roomId: 'global' });
+                console.log('All clients disconnected — messages flushed from DB');
+            }
+        } catch (err) {
+            console.error('Error while checking clients or flushing messages:', err);
+        }
     });
 });
 

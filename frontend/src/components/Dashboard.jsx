@@ -19,12 +19,15 @@ export default function Dashboard({ token, username, onLogout }) {
 
     newSocket.on('connect', () => {
       setIsConnected(true);
-      setMessages([{ 
-        type: 'system', 
-        message: '✓ Connected to server',
-        username: 'System'
-      }]);
+      // wait for recent messages from server (handled in 'recent-messages' listener)
       console.log('Socket connected:', newSocket.id);
+    });
+
+    // recent messages from DB (only emitted on connect)
+    newSocket.on('recent-messages', (data) => {
+      // data is an array of messages in chronological order
+      const systemMsg = { type: 'system', message: '✓ Connected to server', username: 'System' };
+      setMessages([...data, systemMsg]);
     });
 
     newSocket.on('user-connected', (data) => {
